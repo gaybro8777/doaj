@@ -33,6 +33,7 @@ class DomainObject(UserDict, object):
         except:
             if '_source' in kwargs:
                 self.data = dict(kwargs['_source'])
+                self._retrieval_state = dict(kwargs['_source'])
                 self.meta = dict(kwargs)
                 del self.meta['_source']
             else:
@@ -76,6 +77,52 @@ class DomainObject(UserDict, object):
             id = self.makeid()
         self.data["id"] = str(id)
     
+    def _version_merge(self):
+        # get the current state of the data and compare to self._retrieval_state
+        # if the items changed in self.data from self._retrieval_state do not clash with those changed in latest state, merge
+        latest = self.pull(self.id)
+        def _merge(obj1, obj2, ref):
+            if ((isinstance(obj1,dict) or isinstance(obj1,list)) and (isinstance(ref,dict) or isinstance(ref,list)) and (''.join(sorted(json.dumps(obj1))) == ''.join(sorted(json.dumps(ref))))) or obj1 == ref:
+                obj1 = obj2 # if there has been no intervening change (obj1 and ref are same), accept current data outright
+            elif type(obj1) != type(obj2) or type(obj1) != type(ref):
+                return False
+            elif isinstance(obj2,dict):
+                for k in obj2:
+                    # this will allow new keys to be merged in, if they were not already present in the previous version
+                    # and are still not present in the latest state
+                    _merge(obj1.get(k,None), obj2.get(k,None), ref.get(k,None))
+            elif isinstance(obj2,list):
+                # if any of the values in the list are dicts, and lists are otherwise same, it is possible they could be different but mergeable
+                strings = True
+                for val in obj2:
+                    strings = not isinstance(val,dict) and not isinstance(val,list)
+                if strings:
+                    # if everything in the list is strings it is possible to accept new values into the list and get rid of removed values
+                    for nv in obj2:
+                        if nv not in ref and nv not in obj1:
+                            obj1.append(nv)
+                    for rv in ref:
+                        if rv not in obj2 and rv in obj1:
+                            obj1.remove(rv)
+                elif len(obj1) == len(obj2):
+                    # if same length it is possible to check to see if the difference is in nested dicts
+                    # if not the same length it would not be possible to reliably identify which dicts to merge together
+                    for i, v in enumerate(obj2):
+                        try:
+                            _merge(obj1[i],obj2[i],ref[i])
+                        except:
+                            return False
+        # make sure all parts of latest data are included in this merge by using latest as the base
+        merged = _merge(latest.data, self.data, self._retrieval_state)
+        if merged == False:
+            return False
+        else:
+            # could possibly just overwrite data and version here, but for now keep separate
+            # a successful save after calling this merge overwrites them, below
+            self._merged_data = latest.data
+            self._merged_version = latest.version
+            return self._merged_data
+
     @property
     def version(self):
         return self.meta.get('_version', None)
@@ -106,7 +153,7 @@ class DomainObject(UserDict, object):
     def last_updated_timestamp(self):
         return datetime.strptime(self.last_updated, "%Y-%m-%dT%H:%M:%SZ")
 
-    def save(self, retries=0, back_off_factor=1, differentiate=False, blocking=False):
+    def save(self, retries=0, back_off_factor=1, differentiate=False, blocking=False, versioned=False):
 
         if app.config.get("READ_ONLY_MODE", False) and app.config.get("SCRIPTS_READ_ONLY_MODE", False):
             app.logger.warn("System is in READ-ONLY mode, save command cannot run")
@@ -133,13 +180,24 @@ class DomainObject(UserDict, object):
             self.data['created_date'] = now
 
         attempt = 0
+        version_merged = False
+        if versioned and retries == 0: retries = 1 # need at least one retry to do a version merge
         url = self.target() + self.data['id']
+        if versioned: url += '?version=' + self.version
         d = json.dumps(self.data)
         r = None
         while attempt <= retries:
             try:
                 r = requests.post(url, data=d)
-                if r.status_code > 400:
+                if versioned and r.status_code == 409:
+                    if version_merged and attempt == retries:
+                        raise ElasticSearchWriteException("Conflict on ES save. Response code {0}".format(r.status_code))
+                    else:
+                        version_merged = True
+                        d = json.dumps(self._version_merge())
+                        url = url.split('version=')[0] + 'version=' + self._merged_version
+                        attempt += 1
+                elif r.status_code > 400:
                     raise ElasticSearchWriteException("Error on ES save. Response code {0}".format(r.status_code))
                 else:
                     break  # everything is OK, so r should now be assigned to the result
@@ -154,7 +212,11 @@ class DomainObject(UserDict, object):
                     error_details = r.text
 
                 # Retries depend on which end the error lies.
-                if 400 <= r.status_code < 500:
+                if r.status_code == 409:
+                    # Conflict even after retry, do not retry as it won't work. Fail with ElasticSearchWriteException.
+                    app.logger.exception("Conflict to ES, save failed. Details: {0}".format(error_details))
+                    raise
+                elif 400 <= r.status_code < 500:
                     # Bad request, do not retry as it won't work. Fail with ElasticSearchWriteException.
                     app.logger.exception("Bad Request to ES, save failed. Details: {0}".format(error_details))
                     raise
@@ -197,6 +259,14 @@ class DomainObject(UserDict, object):
                     time.sleep(0.25)
                     continue
 
+        if version_merged:
+            # NOTE this will make the object appear as it is in the index
+            # but this could mean there are changes in the object that the user is unaware of
+            # any call to save that is at a UI level should therefore have some way of re-drawing the data
+            # so for example a user would know that their save had also merged with some other change in data values,
+            # and may now be different from what they were looking at on screen
+            self.data = self._merged_data
+            self.version = self._merged_version
         return r
 
     @classmethod
