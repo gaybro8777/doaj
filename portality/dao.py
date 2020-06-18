@@ -78,24 +78,25 @@ class DomainObject(UserDict, object):
         self.data["id"] = str(id)
     
     def _version_merge(self):
-        # get the current state of the data and compare to self._retrieval_state
-        # if the items changed in self.data from self._retrieval_state do not clash with those changed in latest state, merge
+        """ Get the current state of the data and compare to self._retrieval_state, if the items changed in self.data
+        from self._retrieval_state do not clash with those changed in latest state, merge """
         latest = self.pull(self.id)
+
         def _merge(obj1, obj2, ref):
-            if ((isinstance(obj1,dict) or isinstance(obj1,list)) and (isinstance(ref,dict) or isinstance(ref,list)) and (''.join(sorted(json.dumps(obj1))) == ''.join(sorted(json.dumps(ref))))) or obj1 == ref:
-                obj1 = obj2 # if there has been no intervening change (obj1 and ref are same), accept current data outright
+            if ((isinstance(obj1, dict) or isinstance(obj1, list)) and (isinstance(ref, dict) or isinstance(ref, list)) and (''.join(sorted(json.dumps(obj1))) == ''.join(sorted(json.dumps(ref))))) or obj1 == ref:
+                obj1 = obj2  # if there has been no intervening change (obj1 and ref are same), accept current data
             elif type(obj1) != type(obj2) or type(obj1) != type(ref):
                 return False
-            elif isinstance(obj2,dict):
+            elif isinstance(obj2, dict):
                 for k in obj2:
                     # this will allow new keys to be merged in, if they were not already present in the previous version
                     # and are still not present in the latest state
-                    _merge(obj1.get(k,None), obj2.get(k,None), ref.get(k,None))
-            elif isinstance(obj2,list):
+                    _merge(obj1.get(k, None), obj2.get(k, None), ref.get(k, None))
+            elif isinstance(obj2, list):
                 # if any of the values in the list are dicts, and lists are otherwise same, it is possible they could be different but mergeable
                 strings = True
                 for val in obj2:
-                    strings = not isinstance(val,dict) and not isinstance(val,list)
+                    strings = not isinstance(val, dict) and not isinstance(val, list)
                 if strings:
                     # if everything in the list is strings it is possible to accept new values into the list and get rid of removed values
                     for nv in obj2:
@@ -109,9 +110,10 @@ class DomainObject(UserDict, object):
                     # if not the same length it would not be possible to reliably identify which dicts to merge together
                     for i, v in enumerate(obj2):
                         try:
-                            _merge(obj1[i],obj2[i],ref[i])
+                            _merge(obj1[i], obj2[i], ref[i])
                         except:
                             return False
+
         # make sure all parts of latest data are included in this merge by using latest as the base
         merged = _merge(latest.data, self.data, self._retrieval_state)
         if merged == False:
@@ -126,6 +128,10 @@ class DomainObject(UserDict, object):
     @property
     def version(self):
         return self.meta.get('_version', None)
+
+    @version.setter
+    def version(self, val: int):
+        self.meta['_version'] = val
 
     @property
     def json(self):
@@ -181,21 +187,30 @@ class DomainObject(UserDict, object):
 
         attempt = 0
         version_merged = False
-        if versioned and retries == 0: retries = 1 # need at least one retry to do a version merge
+        if versioned and retries == 0:
+            retries = 1  # need at least one retry to do a version merge
+
+        # Build the URL to write to ES
         url = self.target() + self.data['id']
-        if versioned: url += '?version=' + self.version
+        if versioned:
+            url += '?version=' + str(self.version)
+
         d = json.dumps(self.data)
         r = None
         while attempt <= retries:
             try:
                 r = requests.post(url, data=d)
+
+                # If this is a versioned object, we may see 'conflict' from ES. Attempt to merge with the latest in ES.
                 if versioned and r.status_code == 409:
                     if version_merged and attempt == retries:
                         raise ElasticSearchWriteException("Conflict on ES save. Response code {0}".format(r.status_code))
                     else:
-                        version_merged = True
                         d = json.dumps(self._version_merge())
-                        url = url.split('version=')[0] + 'version=' + self._merged_version
+                        version_merged = True
+
+                        # Update the URL to use the new version number of the merge-updated object
+                        url = re.sub(r'\d+$', str(self._merged_version), url)
                         attempt += 1
                 elif r.status_code > 400:
                     raise ElasticSearchWriteException("Error on ES save. Response code {0}".format(r.status_code))
@@ -234,8 +249,7 @@ class DomainObject(UserDict, object):
 
         if attempt > retries:
             raise DAOSaveExceptionMaxRetriesReached(
-                "After {attempts} attempts the record with "
-                "id {id} failed to save.".format(
+                "After {attempts} attempts the record with id {id} failed to save.".format(
                     attempts=attempt, id=self.data['id']))
 
         if blocking:
@@ -266,7 +280,13 @@ class DomainObject(UserDict, object):
             # so for example a user would know that their save had also merged with some other change in data values,
             # and may now be different from what they were looking at on screen
             self.data = self._merged_data
-            self.version = self._merged_version
+
+        # Update the object version based on the response
+        try:
+            self.version = r.json().get('_version', None)
+        except Exception:
+            app.logger.error("No version on save for record with id " + self.id)
+            raise
         return r
 
     @classmethod
