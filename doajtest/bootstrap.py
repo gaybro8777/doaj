@@ -7,6 +7,7 @@ logging.getLogger("requests").setLevel(logging.WARNING)
 
 
 def prepare_for_test():
+    core.app.testing = True
     core.app.config['ELASTIC_SEARCH_DB'] = core.app.config['ELASTIC_SEARCH_TEST_DB']
     core.app.config['ELASTIC_SEARCH_DB_PREFIX'] = core.app.config['ELASTIC_SEARCH_TEST_DB_PREFIX']
 
@@ -20,6 +21,9 @@ def prepare_for_test():
     long_running.always_eager = True
 
     core.app.config['FAKER_SEED'] = 1
+
+    # Recreate the ES connection so that we're using the test index.
+    core.es_connection = core.create_es_connection(core.app)
 
     # if a test on a previous run has totally failed and tearDown has not run, then make sure the index is gone first
     dao.DomainObject.destroy_index()

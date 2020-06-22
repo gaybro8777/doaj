@@ -7,6 +7,7 @@ from portality.dao import DomainObject as DomainObject
 from portality.core import app
 from portality.authorise import Authorise
 
+
 class Account(DomainObject, UserMixin):
     __type__ = 'account'
 
@@ -202,7 +203,7 @@ class Account(DomainObject, UserMixin):
         """Find a user by their API key - only succeed if they currently have API access."""
         res = cls.query(q='api_key.exact:"' + key + '"')
         if res.get('hits', {}).get('total', 0) == 1:
-            usr = cls(**res['hits']['hits'][0]['_source'])
+            usr = cls.pull(res['hits']['hits'][0]['_source']['id'])
             if usr.has_role('api'):
                 return usr
         return None

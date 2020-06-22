@@ -2,7 +2,6 @@ from flask_login import login_user
 
 from unittest import TestCase
 from portality import core, dao
-from portality.app import app
 from doajtest.bootstrap import prepare_for_test
 import dictdiffer
 from datetime import datetime
@@ -14,7 +13,7 @@ prepare_for_test()
 
 
 class DoajTestCase(TestCase):
-    app_test = app
+    app_test = core.app
 
     def init_index(self):
         core.initialise_index(self.app_test, core.es_connection)
@@ -25,9 +24,9 @@ class DoajTestCase(TestCase):
     def setUp(self):
         self.init_index()
 
-        app.config["STORE_IMPL"] = "portality.store.StoreLocal"
-        app.config["STORE_LOCAL_DIR"] = paths.rel2abs(__file__, "..", "tmp", "store", "main")
-        app.config["STORE_TMP_DIR"] = paths.rel2abs(__file__, "..", "tmp", "store", "tmp")
+        self.app_test.config["STORE_IMPL"] = "portality.store.StoreLocal"
+        self.app_test.config["STORE_LOCAL_DIR"] = paths.rel2abs(__file__, "..", "tmp", "store", "main")
+        self.app_test.config["STORE_TMP_DIR"] = paths.rel2abs(__file__, "..", "tmp", "store", "tmp")
 
     def tearDown(self):
         self.destroy_index()
@@ -36,10 +35,10 @@ class DoajTestCase(TestCase):
         shutil.rmtree(paths.rel2abs(__file__, "..", "tmp"), ignore_errors=True)
 
     def list_today_article_history_files(self):
-        return glob(os.path.join(app.config['ARTICLE_HISTORY_DIR'], datetime.now().strftime('%Y-%m-%d'), '*'))
+        return glob(os.path.join(self.app_test.config['ARTICLE_HISTORY_DIR'], datetime.now().strftime('%Y-%m-%d'), '*'))
 
     def list_today_journal_history_files(self):
-        return glob(os.path.join(app.config['JOURNAL_HISTORY_DIR'], datetime.now().strftime('%Y-%m-%d'), '*'))
+        return glob(os.path.join(self.app_test.config['JOURNAL_HISTORY_DIR'], datetime.now().strftime('%Y-%m-%d'), '*'))
 
     def _make_and_push_test_context(self, path="/", acc=None):
         ctx = self.app_test.test_request_context(path)

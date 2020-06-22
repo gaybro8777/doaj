@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 import re
 
-from portality.core import app, es_connection
+from portality.core import app
 import urllib.parse
 import json
 
@@ -127,10 +127,15 @@ class DomainObject(UserDict, object):
 
     @property
     def version(self):
-        return self.meta.get('_version', None)
+        """
+        Version will only be set if this record has been initialised from ES
+        """
+        return getattr(self, 'meta', {}).get('_version', None)
 
     @version.setter
     def version(self, val: int):
+        if getattr(self, 'meta', None) is None:
+            self.meta = {}
         self.meta['_version'] = val
 
     @property
@@ -192,7 +197,7 @@ class DomainObject(UserDict, object):
 
         # Build the URL to write to ES
         url = self.target() + self.data['id']
-        if versioned:
+        if versioned and self.version is not None:
             url += '?version=' + str(self.version)
 
         d = json.dumps(self.data)
@@ -530,6 +535,8 @@ class DomainObject(UserDict, object):
         if app.config.get("READ_ONLY_MODE", False) and app.config.get("SCRIPTS_READ_ONLY_MODE", False):
             app.logger.warn("System is in READ-ONLY mode, destroy_index command cannot run")
             return
+
+        from portality.core import es_connection
 
         if app.config['ELASTIC_SEARCH_INDEX_PER_TYPE']:
             return esprit.raw.delete_index_by_prefix(es_connection, app.config['ELASTIC_SEARCH_DB_PREFIX'])
