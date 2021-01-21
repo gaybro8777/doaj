@@ -1,3 +1,4 @@
+{# ~~Homepage:Page -> Page:Page~~ #}
 {% extends "layouts/base.html" %}
 
 {% block body_class %}homepage{% endblock %}
@@ -73,7 +74,7 @@
                     </article>
                     {% endfor %}
                     #}
-
+                    {# ~~-> Blog:Data~~ #}
                     {% for n in news %}
                     <article class="col-sm-4 col-md-4">
                         <a href="{{ n.url }}" target="_blank" rel="noopener">
@@ -86,6 +87,7 @@
             </div>
 
             {# Twitter feed #}
+            {# ~~-> Twitter:Plugin~~ #}
             <section class="col-md-4 twitter-embed" style="max-height: 50vh; overflow-y: scroll;">
                 <h2 class="label"><a href="https://twitter.com/DOAJplus" target="_blank" rel="noopener">Tweets by @doajplus</a></h2>
                 <a class="twitter-timeline" data-chrome="transparent noheader" href="https://twitter.com/DOAJplus?ref_src=twsrc%5Etfw">Tweets by DOAJplus</a> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
@@ -126,6 +128,7 @@
         #}
     </section>
 
+    {# ~~-> Volunteers:Data~~ #}
     <!-- Volunteers -->
     <section class="homepage__volunteers">
         <div class="container">
@@ -160,10 +163,13 @@
                 <h2 class="label label--secondary">Recently-added journals</h2>
                 <p>DOAJ’s team of managing editors, editors, and volunteers work together with publishers to index new journals. As soon as they’re accepted, these journals are displayed on our website, freely accessible to everyone.</p>
                 {# TODO: Make sure these links work #}
+                {# ~~-> Atom:API~~ #}
                 <p>&rarr; <a href="{{ url_for('atom.feed') }}">See Atom feed</a></p>
+                {# ~~-> JournalCSV:API~~ #}
                 <p>&rarr; <a href="{{ url_for('doaj.csv_data') }}">Download all journals as CSV</a></p>
             </header>
             <div class="col-sm-8">
+                {# ~~-> LatestJournals:Feature~~ #}
                 <ul class="row mobile-scrollable-row title-list">
                     {% for r in recent_journals %}
                     <li class="col-xs-6 col-md-3 col-lg-3">

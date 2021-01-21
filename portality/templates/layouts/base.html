@@ -1,3 +1,6 @@
+{# ~~Page:Page -> Jinja2:Tech~~ #}
+{# ~~-> HTML:Tech ~~ #}
+{# ~~-> CSS:Tech~~ #}
 <!DOCTYPE html>
 <html dir="ltr" lang="en">
 <head>
@@ -80,24 +83,28 @@
   <script src="https://unpkg.com/feather-icons"></script>
 </head>
 
+{# ~~-> CookieConsent:UIComponent~~ #}
 {% if not request.cookies.get(config.get("CONSENT_COOKIE_KEY")) %}
     {% include "doaj/cookie_consent.html" %}
 {% endif %}
 
 <body class="{% block body_class %}{% endblock %}" data-spy="scroll" data-offset="70">
-
+{# ~~-> Header:UIComponent~~ #}
   {% include "includes/header.html" %}
 
     {% block main_panel %}
         {% block content %}{% endblock %}
     {% endblock %}
 
+{# ~~-> Footer:UIComponent~~ #}
     {% include "includes/footer.html" %}
 
     {% include '_js_includes.html' %}
 
     {% block extra_js_bottom %}{% endblock extra_js_bottom %}
 
+{# ~~-> CookieConsent:Action~~ #}
+{# ~~-> SiteNote:Action~~ #}
     {% if not request.cookies.get("doaj-consent") %}
       <script type="text/javascript">
       jQuery(document).ready(function() {

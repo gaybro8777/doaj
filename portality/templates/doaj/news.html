@@ -1,3 +1,5 @@
+{# ~~News:Page~~ #}
+{# ~~-> Page:Page~~ #}
 {% extends "layouts/sidebar-page.html" %}
 
 {% block content %}
@@ -7,6 +9,7 @@
     <div class="col-md-12">
         <div style="margin: 0.5em 1.5em;">
             <h2>News</h2>
+            {# ~~-> Blog:Data~~ #}
             {% for n in news %}
                 <div style="border-bottom: 1px dotted #cccccc; padding: 15px">
                     <strong><a href="{{n.url}}" target="_blank">{% autoescape off%}{{n.title}}{% endautoescape %}</a></strong><br>

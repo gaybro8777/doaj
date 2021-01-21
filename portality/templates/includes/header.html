@@ -1,9 +1,10 @@
 <!--[if IE]>
 <!-p class="browserupgrade">You are using an outdated browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience and security.</p> -->
-
+{# ~~Header:UIComponent~~ #}
 {% set url_list = request.url.split("/") %}
 {% set endpoint = url_list[2:url_list|length-1] %}
 {% set highlighted = ["ambassadors", "volunteers", "editorial-subcommittee", "article"] %}
+{# ~~-> Navigation:UIComponent~~ #}
 <header class="page-header">
     <div class="primary-nav" id="primary-nav">
         <div class="container">
@@ -295,11 +296,13 @@
                 </li>
                 <li class="secondary-nav__login">
                     {% if current_user.is_anonymous %}
+                        {# ~~-> Login:Page~~ #}
                         <a href="{{ url_for('account.login') }}" class="nav-bar__link">
                             Login
                             <span data-feather="log-in" aria-hidden="true"></span>
                         </a>
                     {% else %}
+                        {#  ~~-> Logout:Action~~ #}
                         <a href="{{ url_for('account.logout') }}" class="nav-bar__link">
                             Logout
                             <span data-feather="log-out" aria-hidden="true"></span>
@@ -310,6 +313,7 @@
         </div>
     </nav>
 
+{# ~~-> FlashMessages:UIComponent~~ #}
     {# Flash notifications #}
     {% with messages = get_flashed_messages(with_categories=True) %}
         {% if messages %}
@@ -345,6 +349,8 @@
 
     {# Display large search header on homepage only #}
     {% if request.endpoint == 'doaj.home' %} {#  FIXME: this is a bad way to decide if to incorporate this box #}
+        {# ~~ ! Homepage:Page -> SearchArticles:Page~~ #}
+        {# ~~ ! Homepage:Page -> SearchJournals:Page~~ #}
         <section class="homepage__search">
             <div class="container">
                 <p class="label">The Directory of Open Access Journals</p>
@@ -379,7 +385,8 @@
                         </div>
                     </div>
                 </form>
-
+                {# ~~ ! Homepage:Page -> SiteStats:UIComponent~~ #}
+                {# ~~ ! SiteStats:UIComponent -> SiteStats:Feature~~ #}
                 <section class="row mobile-scrollable-row">
                     <h2 class="sr-only">DOAJ in numbers</h2>
                     <p class="col-md-2 stat">
@@ -423,6 +430,9 @@
 </header>
 
 {# Quick search modal #}
+{# ~~-> QuickSearch:UIComponent~~ #}
+{# ~~ ! QuickSearch:UIComponent -> SearchArticles:Page~~ #}
+{# ~~ ! QuickSearch:UIComponent -> SearchJournals:Page~~ #}
 <section class="modal" id="modal-search" tabindex="-1" role="dialog">
     <div class="modal__dialog" role="document">
         <form class="quick-search__form doaj-minisearch--container" role="search" action="{{ url_for('doaj.search_post') }}" method="post">
