@@ -1,10 +1,36 @@
 import re
 import csv
 import os
+from lark import Lark
 
 INCLUDE = ["*.py", "*.html"]
 DELIMIT = "~~"
 RX = "~~(.+)~~"
+PARSER = Lark("""
+start: context
+     | link entity
+     | context link entity
+     | noswitch context link entity
+
+context: CONTEXT -> context
+link: LINK -> link
+entity: ENTITY -> entity
+noswitch: NOSWITCH -> noswitch
+
+CONTEXT: PREFIX ":" TYPE
+LINK: " "* "->" " "* 
+    | " "+ SYMBOL " "+
+ENTITY: PREFIX ":" TYPE
+NOSWITCH: " "* "!" " "*
+
+PREFIX: SYMBOL
+TYPE: SYMBOL
+
+LOWER: ("a".."z")+
+UPPER: ("A".."Z")+
+NUMBER: ("0".."9")+
+SYMBOL: (LOWER | UPPER | NUMBER)+
+""")
 
 class MapException(Exception):
     def __init__(self, message, file=None, line=None):
@@ -173,6 +199,27 @@ def validate_entity(entity, valid_types, type_validation):
 
 
 def parse_reference(text):
+    try:
+        tree = PARSER.parse(text.strip())
+    except:
+        raise MapException("Unable to parse text '{x}'".format(x=text))
+
+    resp = {}
+    for child in tree.children:
+        field_name = child.data
+        field_value = child.children[0].value.strip()
+
+        if field_name == "noswitch":
+            resp["switch_context"] = False
+        if field_name == "context":
+            resp["context"] = field_value
+        if field_name == "link":
+            resp["rel"] = field_value
+        if field_name == "entity":
+            resp["target"] = field_value
+    return resp
+
+    """
     bits = [x.strip() for x in text.strip().split(" ")]
     if len(bits) == 1:
         return {"context" : bits[0]}
@@ -183,7 +230,7 @@ def parse_reference(text):
     if len(bits) == 4 and bits[0] == "!":
         return {"switch_context" : False, "context" : bits[1], "rel" : bits[2], "target" : bits[3]}
     raise MapException("Unable to parse text '{x}'".format(x=text))
-
+    """
 
 def data2csv(data, out):
     if not os.path.exists(out):
