@@ -1,0 +1,37 @@
+{% macro file_refs(refs) %}
+    {% for r in refs %}
+        {% if not loop.first %}; {% endif %}
+        {{ r.file }}#L{{ r.line }}
+    {% endfor %}
+{% endmacro %}
+
+<html>
+    <body>
+        {% set ns = namespace(current_entity=False) %}
+        {% for triple in data.ordered_triples %}
+            {% if triple[0] != ns.current_entity %}
+
+                {% if not loop.first %}
+                    </table>
+                {% endif %}
+
+                {% set ns.current_entity = triple[0] %}
+
+                <h1><a name="{{ triple[0] }}"></a>{{ triple[0] }}</h1>
+                <p>{{ file_refs(data.entity_definitions(triple[0])) }}</p>
+                    <table>
+            {% endif %}
+
+                <tr>
+                    <td>{{ triple[1] }}</td>
+                    <td><a href="#{{ triple[2] }}">{{ triple[2] }}</a></td>
+                    <td>{{ file_refs(triple[3]) }}</td>
+                </tr>
+
+            {% if loop.last %}
+                </table>
+            {% endif %}
+        {% endfor %}
+
+    </body>
+</html>

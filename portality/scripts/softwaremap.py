@@ -2,6 +2,10 @@ import re
 import csv
 import os
 from lark import Lark
+from jinja2 import Environment
+import json
+import fnmatch
+
 
 INCLUDE = ["*.py", "*.html"]
 DELIMIT = "~~"
@@ -87,6 +91,27 @@ class Analysis(object):
     def terminals(self, val):
         self._terminals = val
 
+    @property
+    def ordered_triples(self):
+        subjects = list(self._targets)
+        subjects.sort()
+
+        triples = []
+        for s in subjects:
+            relations = self._relations.get(s)
+            if relations:
+                relation_triples = relations.ordered_triples
+                triples += relation_triples
+
+            for _, r in self._relations.items():
+                if s in r.targets:
+                    triples += r.triples_for(s)
+
+        return triples
+
+    def entity_definitions(self, entity_name):
+        return self._entities.get(entity_name, "")
+
     def add_known_target(self, target):
         self._targets.add(target)
 
@@ -119,6 +144,7 @@ class Relation(object):
         self.analysis = analysis
         self.name = name
         self.refs = {}
+        self.targets = []
 
     def add_ref(self, rel, target, file, line):
         if rel not in self.refs:
@@ -129,63 +155,120 @@ class Relation(object):
             "file": file,
             "line": line
         })
+        self.targets.append(target)
         self.analysis.add_known_target(target)
 
+    @property
+    def ordered_triples(self):
+        refs = list(self.refs.keys())
+        refs.sort()
 
-def parse_tree(directory, analysis, valid_types, type_validation):
+        triples = []
+        for r in refs:
+            objects = list(self.refs[r].keys())
+            objects.sort()
+            for o in objects:
+                triples.append((self.name, r, o, self.refs[r][o]))
+
+        return triples
+
+    def triples_for(self, o):
+        refs = list(self.refs.keys())
+        refs.sort()
+
+        triples = []
+        for r in refs:
+            if o not in self.refs[r]:
+                continue
+            triples.append((o, self._reverse(r), self.name, self.refs[r][o]))
+
+        return triples
+
+    def _reverse(self, rel):
+        if rel == "->":
+            return "<-"
+        return "<- " + rel
+
+def parse_tree(config, analysis):#directory, analysis, valid_types, type_validation):
+    directory = config.get("dir")
+    exclude_dirs = config.get("exclude_dirs", [])
+    exclude_files = config.get("exclude_files", [])
+
     for root, dirs, files in os.walk(directory):
+        skip = False
+        for ed in exclude_dirs:
+            if root.startswith(ed):
+                skip = True
+        if skip:
+            continue
         for name in files:
-            parse_file(os.path.join(root, name), analysis, valid_types, type_validation)
+            skip = False
+            for ef in exclude_files:
+                if fnmatch.fnmatch(name, ef):
+                    skip = True
+            if skip:
+                continue
+            path = os.path.join(root, name)
+            parse_file(config, path, analysis)#, valid_types, type_validation)
 
 
-def parse_file(file, analysis, valid_types, type_validation):
+def parse_file(config, file, analysis):#, valid_types, type_validation):
+    valid_types = config.get("valid_types", [])
+    type_validation = config.get("type_validation", "none")
+    ignore_parse_errors = file in config.get("ignore_parse_errors_in", [])
+
     analysis.add_file(file)
     with open(file, "r") as f:
         context = False
         ln = 0
-        for line in f:
-            ln += 1
-            if DELIMIT in line:
-                m = re.findall(RX, line)
-                if not m:
-                    continue
-                for annotation in m:
-                    analysis.annotation_hit(file)
+        try:
+            for line in f:
+                ln += 1
+                if DELIMIT in line:
+                    m = re.findall(RX, line)
+                    if not m:
+                        continue
+                    for annotation in m:
+                        analysis.annotation_hit(file)
 
-                    try:
-                        ref = parse_reference(annotation)
-                    except MapException as e:
-                        e.file = f.name
-                        e.line = ln
-                        raise
+                        try:
+                            ref = parse_reference(annotation)
+                        except MapException as e:
+                            if ignore_parse_errors:
+                                continue
+                            e.file = f.name
+                            e.line = ln
+                            raise
 
-                    if ref.get("switch_context", True):
-                        if "context" in ref:
-                            context = ref["context"]
+                        if ref.get("switch_context", True):
+                            if "context" in ref:
+                                context = ref["context"]
 
-                            try:
-                                validate_entity(context, valid_types, type_validation)
-                            except MapException as e:
-                                e.file = f.name
-                                e.line = ln
-                                raise
+                                try:
+                                    validate_entity(context, valid_types, type_validation)
+                                except MapException as e:
+                                    e.file = f.name
+                                    e.line = ln
+                                    raise
 
-                            analysis.add_entity_definition(context, f.name, ln)
-                        if not context:
-                            raise MapException("Context not set when annotation provided", f.name, ln)
-                        if "rel" in ref:
-                            try:
-                                validate_entity(ref["target"], valid_types, type_validation)
-                            except MapException as e:
-                                e.file = f.name
-                                e.line = ln
-                                raise
-                            relation = analysis.add_relation(context)
+                                analysis.add_entity_definition(context, f.name, ln)
+                            if not context:
+                                raise MapException("Context not set when annotation provided", f.name, ln)
+                            if "rel" in ref:
+                                try:
+                                    validate_entity(ref["target"], valid_types, type_validation)
+                                except MapException as e:
+                                    e.file = f.name
+                                    e.line = ln
+                                    raise
+                                relation = analysis.add_relation(context)
+                                relation.add_ref(ref["rel"], ref["target"], f.name, ln)
+                        else:
+                            analysis.add_entity_definition(ref["context"], f.name, ln)
+                            relation = analysis.add_relation(ref["context"])
                             relation.add_ref(ref["rel"], ref["target"], f.name, ln)
-                    else:
-                        analysis.add_entity_definition(ref["context"], f.name, ln)
-                        relation = analysis.add_relation(ref["context"])
-                        relation.add_ref(ref["rel"], ref["target"], f.name, ln)
+        except UnicodeDecodeError as e:
+            print("UnicodeDecodeError on file {f}".format(f=file))
 
 
 def validate_entity(entity, valid_types, type_validation):
@@ -219,20 +302,9 @@ def parse_reference(text):
             resp["target"] = field_value
     return resp
 
-    """
-    bits = [x.strip() for x in text.strip().split(" ")]
-    if len(bits) == 1:
-        return {"context" : bits[0]}
-    if len(bits) == 2:
-        return {"rel" : bits[0], "target" : bits[1]}
-    if len(bits) == 3:
-        return {"switch_context" : True, "context" : bits[0], "rel" : bits[1], "target" : bits[2]}
-    if len(bits) == 4 and bits[0] == "!":
-        return {"switch_context" : False, "context" : bits[1], "rel" : bits[2], "target" : bits[3]}
-    raise MapException("Unable to parse text '{x}'".format(x=text))
-    """
 
-def data2csv(data, out):
+def data2csv(config, data):#, out):
+    out = config.get("out")
     if not os.path.exists(out):
         os.makedirs(out)
 
@@ -278,13 +350,43 @@ def data2csv(data, out):
             writer.writerow([target])
 
 
-def run(source, target, type_source=None, type_validation="none", terminals_source=None):
+def data2json():
+    pass
+
+
+def data2html(config, data):#, out, html_template):
+    out = config.get("out")
+    html_template = config.get("html_template")
+
+    if not os.path.exists(out):
+        os.makedirs(out)
+
+    env = Environment()
+    with open(html_template, "r", encoding="utf-8") as f:
+        template = env.from_string(f.read())
+
+    page = template.render(data=data)
+
+    outfile = os.path.join(out, "html", "index.html")
+    outdir = os.path.dirname(outfile)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    with open(outfile, "w", encoding="utf-8") as f:
+        f.write(page)
+
+
+def run(config):#source, target, type_source=None, type_validation="none", terminals_source=None, html_template=None):
+
+    type_source = config.get("types")
+    terminals_source = config.get("terminals")
+
     try:
         valid_types = []
         if type_source is not None:
             with open(type_source, "r", encoding="utf-8") as f:
                 reader = csv.reader(f)
                 valid_types = [row[0] for row in reader]
+        config["valid_types"] = valid_types
 
         terminal_entities = []
         if terminals_source is not None:
@@ -295,26 +397,27 @@ def run(source, target, type_source=None, type_validation="none", terminals_sour
         data = Analysis()
         data.terminals = terminal_entities
 
-        parse_tree(source, data, valid_types, type_validation)
-        data2csv(data, target)
+        parse_tree(config, data)#source, data, valid_types, type_validation)
+        data2csv(config, data)#, target)
+        if "html_template" in config:
+            data2html(config, data)#, target, html_template)
     except MapException as e:
         print(str(e))
 
+
 def test():
-    run("/home/richard/Code/External/doaj3/portality/templates/",
-         "/home/richard/tmp/doaj/softwaremap",
-        "/home/richard/Code/External/doaj3/softwaremap/types.csv",
-        "error",
-        "/home/richard/Code/External/doaj3/softwaremap/terminals.csv")
+    with open("/home/richard/Code/External/doaj3/softwaremap/config.json", "r", encoding="utf-8") as f:
+        config = json.loads(f.read())
+    run(config)
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file", help="File to parse")
-    parser.add_argument("-o", "--out", help="Output Directory")
-    parser.add_argument("-t", "--types", help="Types registru")
+    parser.add_argument("-c", "--config", help="config file")
     args = parser.parse_args()
 
-    run(args.file, args.out, args.types)
+    with open(args.config, "r", encoding="utf-8") as f:
+        config = json.loads(f.read())
+    run(config)
 

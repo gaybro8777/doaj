@@ -1,4 +1,5 @@
 # -*- coding: UTF-8 -*-
+# ~~WebApp:Infrastructure~~
 
 """
 This is the default app controller for portality.
@@ -74,9 +75,11 @@ initialise_index(app, es_connection)
 # Import list of Sponsors from the static site’s data file
 # Only display gold & silver sponsors for now on the homepage
 # The same file is used to display sponsors in the Sponsors page’s full list
+# ~~->Sponsors:Data~~
 with open(os.path.join(app.config["BASE_FILE_PATH"],"../static_content/_data/sponsors.yml")) as f:
     SPONSORS = yaml.load(f, Loader=yaml.FullLoader)
 
+# ~~->Volunteers:Data~~
 with open(os.path.join(app.config["BASE_FILE_PATH"],"../static_content/_data/volunteers.yml")) as f:
     VOLUNTEERS = yaml.load(f, Loader=yaml.FullLoader)
 
@@ -98,6 +101,7 @@ def custom_static(path):
 
 
 # Configure the Google Analytics tracker
+# ~~->GoogleAnalytics:Plugin~~
 from portality.lib import analytics
 try:
     analytics.create_logfile(app.config.get('GOOGLE_ANALTYICS_LOG_DIR', None))
@@ -139,6 +143,9 @@ def another_legacy_csv_route():
 
 @app.route("/schemas/doajArticles.xsd")
 def legacy_doaj_XML_schema():
+    """
+    ~~->DOAJXSD:Static~~
+    """
     schema_fn = 'doajArticles.xsd'
     return send_file(
             os.path.join(app.config.get("STATIC_DIR"), "doaj", schema_fn),
@@ -167,6 +174,10 @@ def set_current_context():
     header is present on the page. It also makes the list of DOAJ
     sponsors available and may include similar minor pieces of
     information.
+    
+    ~~->Sponsors:Data~~
+    ~~->Volunteers:Data~~
+    ~~->SiteStats:Feature~~
     '''
     return {
         'sponsors': SPONSORS,
@@ -224,6 +235,8 @@ def form_diff_table_comparison_value(val):
     Function for converting the given value to a suitable UI value for presentation in the diff table
     on the admin forms for update requests.
 
+    ~~->FormDiff:Feature~~
+
     :param val: the raw value to be converted to a display value
     :return:
     """
@@ -249,6 +262,8 @@ def form_diff_table_comparison_value(val):
 def form_diff_table_subject_expand(val):
     """
     Function for expanding one or more subject classifications out to their full terms
+
+    ~~->FormDiff:Feature~~
 
     :param val:
     :return:
@@ -277,7 +292,10 @@ def form_diff_table_subject_expand(val):
 
 @app.before_request
 def standard_authentication():
-    """Check remote_user on a per-request basis."""
+    """
+    Check remote_user on a per-request basis.
+    ~~->Login:Action~~
+    """
     remote_user = request.headers.get('REMOTE_USER', '')
     if remote_user:
         user = models.Account.pull(remote_user)
@@ -294,6 +312,7 @@ def standard_authentication():
 
 
 # Register configured API versions
+# ~~->API:Endpoint~~
 features = app.config.get('FEATURES', [])
 if 'api1' in features or 'api2' in features:
     @app.route('/api/')
@@ -329,6 +348,9 @@ if 'api1' in features or 'api2' in features:
 # Make the reCAPTCHA key available to the js
 @app.route('/get_recaptcha_site_key')
 def get_site_key():
+    """
+    ~~->Recaptcha:Plugin~~
+    """
     return app.config.get('RECAPTCHA_SITE_KEY', '')
 
 

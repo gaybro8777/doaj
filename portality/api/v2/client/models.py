@@ -3,14 +3,18 @@ from portality.api.v2.data_objects.article import IncomingArticleDO
 
 
 class Journal(OutgoingJournal):
-
+    """
+    ~~APIClientJournal:Model->API:Client~~
+    """
     def all_issns(self):
         issns = [self.data["bibjson"]["pissn"], self.data["bibjson"]["eissn"]]
         return issns
 
 
 class Article(IncomingArticleDO):
-
+    """
+    ~~APIClientArticle:Model->API:Client~~
+    """
     def add_identifier(self, type, id):
         if type is None or id is None:
             return

@@ -7,17 +7,12 @@ from portality import models
 from portality.bll import DOAJ
 from portality.bll.exceptions import AuthoriseException, NoSuchObjectException
 from portality import lock
-# from portality.formcontext import formcontext
 from portality.crosswalks.application_form import ApplicationFormXWalk
 from portality.forms.application_forms import ApplicationFormFactory
-from werkzeug.datastructures import MultiDict
 
 from copy import deepcopy
 
-from portality.models.v2 import shared_structs
-from portality.models.v2.application import APPLICATION_STRUCT
-
-
+#~~ApplicationCRUDAPI:Feature->API:Feature~~
 class ApplicationsCrudApi(CrudApi):
 
     API_KEY_OPTIONAL = False
@@ -43,6 +38,9 @@ class ApplicationsCrudApi(CrudApi):
 
     @classmethod
     def create_swag(cls):
+        """
+        ~~->Swagger:Data~~
+        """
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(cls.SWAG_APPLICATION_BODY_PARAM)
         template['responses']['201'] = cls.R201
@@ -59,6 +57,7 @@ class ApplicationsCrudApi(CrudApi):
             raise Api401Error()
 
         # first thing to do is a structural validation, but instantiating the data object
+        # ~~->APIIncomingApplication:Model~~
         try:
             ia = IncomingApplication(data)
         except seamless.SeamlessException as e:
@@ -78,9 +77,11 @@ class ApplicationsCrudApi(CrudApi):
         # if this is an update request on an existing journal
         if ap.current_journal is not None:
             # DOAJ BLL for this request
+            #~~->Application:Service~~
             applicationService = DOAJ.applicationService()
 
             # load the update_request application either directly or by crosswalking the journal object
+            #~~->Lock:Feature~~
             vanilla_ap = None
             jlock = None
             alock = None
@@ -101,10 +102,11 @@ class ApplicationsCrudApi(CrudApi):
                 raise Api404Error(jlock, alock)
 
             # convert the incoming application into the web form
+            # ~~->ApplicationForm:Crosswalk~~
+            # ~~->ApplicationFormUR:Form~~
             form = ApplicationFormXWalk.obj2formdata(ap)
             formulaic_context = ApplicationFormFactory.context("update_request")
             fc = formulaic_context.processor(formdata=form, source=vanilla_ap)
-            # fc = formcontext.ApplicationFormFactory.get_form_context(role="publisher", form_data=form, source=vanilla_ap)
 
             if fc.validate():
                 try:
@@ -124,15 +126,14 @@ class ApplicationsCrudApi(CrudApi):
         # otherwise, this is a brand-new application
         else:
             # convert the incoming application into the web form
-            # form = MultiDict(ApplicationFormXWalk.obj2form(ap))
-            #from doajtest.fixtures.v2.common import expanded2compact
-            #form = MultiDict(expanded2compact(ApplicationFormXWalk.obj2form(ap)))
+            # ~~->ApplicationForm:Crosswalk~~
             form = ApplicationFormXWalk.obj2formdata(ap)
 
             # create a template that will hold all the values we want to persist across the form submission
             template = models.Application()
             template.set_owner(account.id)
 
+            # ~~->ApplicationFormPublic:Form~~
             fc = ApplicationFormFactory.context("public")
             processor = fc.processor(form, template)
             if processor.validate():
@@ -148,7 +149,9 @@ class ApplicationsCrudApi(CrudApi):
 
     @classmethod
     def retrieve_swag(cls):
-
+        """
+        ~~->Swagger:Data~~
+        """
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(cls.SWAG_ID_PARAM)
         template['responses']['200'] = cls.R200
@@ -166,7 +169,7 @@ class ApplicationsCrudApi(CrudApi):
             raise Api401Error()
 
         # is the application id valid
-        ap = models.Suggestion.pull(id)
+        ap = models.Application.pull(id)
         if ap is None:
             raise Api404Error()
 
@@ -176,11 +179,15 @@ class ApplicationsCrudApi(CrudApi):
             raise Api404Error()
 
         # if we get to here we're going to give the user back the application
+        # ~~->APIOutgoingApplication:Model~~
         oa = OutgoingApplication.from_model(ap)
         return oa
 
     @classmethod
     def update_swag(cls):
+        """
+        ~~->Swagger:Data~~
+        """
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(cls.SWAG_ID_PARAM)
         template['parameters'].append(cls.SWAG_APPLICATION_BODY_PARAM)
@@ -200,6 +207,7 @@ class ApplicationsCrudApi(CrudApi):
             raise Api401Error()
 
         # next thing to do is a structural validation of the replacement data, by instantiating the object
+        # ~~->APIIncomingApplication:Model~~
         try:
             ia = IncomingApplication(data)
         except seamless.SeamlessException as e:
@@ -219,6 +227,7 @@ class ApplicationsCrudApi(CrudApi):
         new_ap.bibjson().remove_subjects()
 
         # DOAJ BLL for this request
+        #~~->Application:Service~~
         applicationService = DOAJ.applicationService()
         authService = DOAJ.authorisationService()
 
@@ -229,6 +238,7 @@ class ApplicationsCrudApi(CrudApi):
                 raise Api400Error("current_journal cannot be changed once set.  current_journal is {x}; this request tried to change it to {y}".format(x=ap.current_journal, y=new_ap.current_journal))
 
             # load the update_request application either directly or by crosswalking the journal object
+            # ~~->Lock:Feature~~
             vanilla_ap = None
             jlock = None
             alock = None
@@ -249,6 +259,8 @@ class ApplicationsCrudApi(CrudApi):
                 raise Api404Error()
 
             # convert the incoming application into the web form
+            # ~~->ApplicationForm:Crosswalk~~
+            # ~~->ApplicationFormUR:Form~~
             form = ApplicationFormXWalk.obj2formdata(new_ap)
             formulaic_context = ApplicationFormFactory.context("update_request")
             fc = formulaic_context.processor(formdata=form, source=vanilla_ap)
@@ -268,6 +280,7 @@ class ApplicationsCrudApi(CrudApi):
                 raise Api400Error(cls._validation_message(fc))
         else:
             try:
+                # ~~-> Authorisation:Service~~
                 authService.can_edit_application(account, ap)
             except AuthoriseException as e:
                 if e.reason == e.WRONG_STATUS:
@@ -276,8 +289,10 @@ class ApplicationsCrudApi(CrudApi):
                     raise Api404Error()
 
             # convert the incoming application into the web form
+            # ~~->ApplicationForm:Crosswalk~~
             form = ApplicationFormXWalk.obj2formdata(new_ap)
 
+            # ~~->ApplicationFormPublic:Form~~
             formulaic_context = ApplicationFormFactory.context("public")
             fc = formulaic_context.processor(form)
 
@@ -292,6 +307,9 @@ class ApplicationsCrudApi(CrudApi):
 
     @classmethod
     def delete_swag(cls):
+        """
+        ~~->Swagger:Data~~
+        """
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(cls.SWAG_ID_PARAM)
         template['responses']['204'] = cls.R204
@@ -308,6 +326,7 @@ class ApplicationsCrudApi(CrudApi):
         if account is None:
             raise Api401Error()
 
+        #~~->Application:Service~~
         applicationService = DOAJ.applicationService()
         authService = DOAJ.authorisationService()
 
@@ -315,6 +334,7 @@ class ApplicationsCrudApi(CrudApi):
             application, _ = applicationService.application(id)
             if application is not None:
                 try:
+                    #~~->Authorisation:Service~~
                     authService.can_edit_application(account, application)
                 except AuthoriseException as e:
                     if e.reason == e.WRONG_STATUS:
@@ -359,20 +379,3 @@ class ApplicationsCrudApi(CrudApi):
             fieldName = ApplicationFormXWalk.formField2objectField(fieldName)
             msg += fieldName + " : " + "; ".join(errorMessages) + "\n"
         return msg
-        """
-        for fieldName, errorMessages in errors.items():
-            if isinstance(errorMessages, dict):
-                for subfield, subMessages in errorMessages.items():
-
-
-            fieldName = ApplicationFormXWalk.formField2objectField(fieldName)
-            reportable = []
-
-            for em in errorMessages:
-                if isinstance(em, list):
-                    em = " ".join(em)
-                reportable.append(em)
-            msg += fieldName + " : " + "; ".join(reportable) + "\n"
-        return msg
-        """
-

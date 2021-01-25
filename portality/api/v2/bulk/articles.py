@@ -7,13 +7,14 @@ from portality.bll import exceptions
 from copy import deepcopy
 
 
-
+# ~~ArticlesBulkAPI:Feature~~
 class ArticlesBulkApi(Api):
 
     SWAG_TAG = 'Bulk API'
 
     @classmethod
     def create_swag(cls):
+        #~~->Swagger:Data~~
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(
             {
@@ -45,6 +46,7 @@ class ArticlesBulkApi(Api):
         # convert the data into a suitable article models
         articles = [ArticlesCrudApi.prep_article(data) for data in articles]
 
+        #~~->Article:Service~~
         articleService = DOAJ.articleService()
         try:
             result = articleService.batch_create_articles(articles, account, add_journal_info=True)

@@ -1,0 +1,26 @@
+{
+	"dir" : "/home/richard/Code/External/doaj3/portality/",
+	"exclude_dirs" : [
+		"/home/richard/Code/External/doaj3/portality/static/crossref",
+		"/home/richard/Code/External/doaj3/portality/static/vendor",
+		"/home/richard/Code/External/doaj3/portality/static/js/vendors",
+		"/home/richard/Code/External/doaj3/portality/static/widget/fqw_dependencies",
+		"/home/richard/Code/External/doaj3/portality/migrate"
+	],
+	"ignore_parse_errors_in" : [
+		"/home/richard/Code/External/doaj3/portality/scripts/softwaremap.py"
+	],
+	"exclude_files" : [
+		"*.pyc",
+		"*.png",
+		"*.gif",
+		"*.jpg",
+		"*.ico",
+		"*.jpeg"
+	],
+	"out" : "/home/richard/tmp/doaj/softwaremap",
+	"types" : "/home/richard/Code/External/doaj3/softwaremap/types.csv",
+	"type_validation": "error",
+	"terminals" : "/home/richard/Code/External/doaj3/softwaremap/terminals.csv",
+	"html_template" : "/home/richard/Code/External/doaj3/softwaremap/softwaremap.html"
+}

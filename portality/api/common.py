@@ -11,6 +11,7 @@ ERROR_TEMPLATE = {"status": {"type": "string"}, "error": {"type": "string"}}
 CREATED_TEMPLATE = {"status": {"type": "string"}, "id": {"type": "string"}, "location": {"type": "string"}}
 
 
+# ~~API:Feature~~
 class Api(object):
     SWAG_TEMPLATE = {
         "responses": {},
@@ -88,6 +89,8 @@ class Api(object):
     def _build_swag_response(cls, template, api_key_optional_override=None):
         """
         Construct the swagger response structure upon a template
+        ~~->Swagger:Data~~
+
         :param template
         :param api_key_optional_override: override the class-level value of API_KEY_OPTIONAL
         :return: an updated template

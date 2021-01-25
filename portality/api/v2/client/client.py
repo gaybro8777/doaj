@@ -18,6 +18,7 @@ class DOAJException(Exception):
         super(DOAJException, self).__init__(*args, **kwargs)
 
 
+# ~~API:Client->API:Endpoint~~
 class DOAJv1API(object):
 
     CLASSMAP = {
@@ -176,7 +177,7 @@ class ANDQueryBuilder(object):
 #
 # This is deprecated, and you should use the DOAJCv1API above for full
 # access to all Search and CRUD activities
-
+# ~~Query:Client->Query:Endpoint~~
 class DOAJSearchClient(object):
 
     def __init__(self, search_base=None, query_endpoint=None, search_type=None, search_port=None):

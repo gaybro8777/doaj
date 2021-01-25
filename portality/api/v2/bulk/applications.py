@@ -3,6 +3,7 @@ from portality.api.common import Api404Error, Api400Error, Api403Error
 from portality.api.v2.crud import ApplicationsCrudApi
 from copy import deepcopy
 
+# ~~ApplicationsBulkAPI:Feature~~
 class ApplicationsBulkApi(CrudApi):
 
     API_KEY_OPTIONAL = False
@@ -24,6 +25,7 @@ class ApplicationsBulkApi(CrudApi):
 
     @classmethod
     def create_swag(cls):
+        # ~~-> Swagger:Data~~
         template = deepcopy(cls.SWAG_TEMPLATE)
         template['parameters'].append(cls.SWAG_APPLICATION_BODY_PARAM)
         template['responses']['201'] = cls.R201_BULK
