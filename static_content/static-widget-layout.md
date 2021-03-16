@@ -30,7 +30,7 @@ highlight: false
         Display options
       </h3>
       <label for="results-per-page">Results per page</label>
-      <select class="form-control" name="results-per-page">
+      <select class="form-control" name="results-per-page" id="results-per-page">
         <option selected="selected">
           5
         </option>
